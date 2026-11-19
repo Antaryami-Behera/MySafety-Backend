@@ -2,10 +2,11 @@
 #!/bin/bash
 set -e
 
-APP_DIR="/home/ubuntu/mysafety-health-demo"
+APP_DIR="/home/ubuntu"
 
 # Install Node.js 22 if missing
 if ! command -v node >/dev/null 2>&1; then
+    export DEBIAN_FRONTEND=noninteractive
     apt-get update
     apt-get install -y curl
     curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
@@ -13,26 +14,42 @@ if ! command -v node >/dev/null 2>&1; then
 fi
 
 # Install Nginx and PM2
+export DEBIAN_FRONTEND=noninteractive
 apt-get update
 apt-get install -y nginx
 npm install -g pm2
 
-# Set project permissions
-chown -R ubuntu:ubuntu "$APP_DIR"
+# Set ownership only on application files
+for path in \
+    API_MESSAGES.md Dockerfile LICENSE README.md buildspec.yml \
+    dist-health docker-compose.yml generate-secrets.js nginx \
+    node_modules package.json package-lock.json postScript.sh \
+    src templates tsconfig.health.json tsconfig.json
+do
+    if [ -e "$APP_DIR/$path" ]; then
+        chown -R ubuntu:ubuntu "$APP_DIR/$path"
+    fi
+done
 
-# Install production dependencies and start the API
-sudo -u ubuntu -H bash -c '
-cd /home/ubuntu/mysafety-health-demo
-npm install --omit=dev
-
-if pm2 describe mysafety-health >/dev/null 2>&1; then
-    pm2 restart mysafety-health
-else
-    pm2 start dist-health/health.js --name mysafety-health
+# Protect environment file
+if [ -f "$APP_DIR/.env" ]; then
+    chown ubuntu:ubuntu "$APP_DIR/.env"
+    chmod 600 "$APP_DIR/.env"
 fi
 
-pm2 save
-'
+# Install production dependencies and start the API
+sudo -u ubuntu -H bash -c "
+    cd '$APP_DIR'
+    npm install --omit=dev
+
+    if pm2 describe mysafety-health >/dev/null 2>&1; then
+        pm2 restart mysafety-health
+    else
+        pm2 start dist-health/health.js --name mysafety-health
+    fi
+
+    pm2 save
+"
 
 # Configure Nginx
 cat > /etc/nginx/sites-available/mysafety-health <<'EOF'
