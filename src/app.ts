@@ -75,6 +75,11 @@ const limiter = rateLimit({
 
 app.use("/api/", limiter);
 
+app.use("/", (req, res) => {
+  logger.info(`Incoming request: ${req.method} ${req.originalUrl}`);
+  res.status(200).json({ message: "Welcome to the Backend server MySafety" });
+});
+
 // Body parser with size limits
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ limit: "10mb", extended: true }));
